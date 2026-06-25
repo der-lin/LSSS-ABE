@@ -1,0 +1,28 @@
+﻿{
+    "policy":  {
+                   "attr":  "role:admin"
+               },
+    "lsss":  {
+                 "M":  [
+                           [
+                               "1"
+                           ]
+                       ],
+                 "rho":  [
+                             "role:admin"
+                         ]
+             },
+    "C":  "67486162892556673866906269382068834872",
+    "C0":  "56837925432048521809896923514706271588",
+    "Ci":  [
+               "47566991298619203388630041305938671127"
+           ],
+    "Di":  [
+               "0"
+           ],
+    "payload":  {
+                    "nonce":  "js//nS/PLJgM++hwHzI8RA==",
+                    "data":  "AcIQn/FpwCFkDubpCWMnQSXGNUHtyvF1z4zxcpen6jk=",
+                    "tag":  "ULRBEx2kJye0enUrL8JYBLfd5uZW/JEQ7vkzmX4zNX0="
+                }
+}

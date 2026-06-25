@@ -1,0 +1,12 @@
+﻿{
+    "p":  "170141183460469231731687303715884105727",
+    "g":  "1",
+    "ga":  "122930076595060018152898965321736608683",
+    "egg_alpha":  "58180461355573095875514115390897608271",
+    "group":  {
+                  "adapter":  "ExponentSimulation",
+                  "scalar_modulus":  "170141183460469231731687303715884105727",
+                  "real_pairing":  false,
+                  "migration_target":  "PairingAdapter(G1,G2,GT,Zp,pair,hash,serialize,subgroup-check)"
+              }
+}

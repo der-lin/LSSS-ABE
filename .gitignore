@@ -1,0 +1,6 @@
+
+env/*
+.agents/*
+.deepseek/*
+.npm-cache/*
+.obsidian/*

@@ -1,0 +1,139 @@
+\chapter{附录：复现实验与补充材料}
+
+\section{完整命令清单}
+
+本节给出从项目根目录进入 \verb|Project| 后的一组完整命令。由于 Windows 默认执行策略可能禁止直接执行 \verb|.ps1| 脚本，本文命令统一采用 \verb|-ExecutionPolicy Bypass| 方式运行。
+
+\begin{lstlisting}[language=bash,caption={进入项目目录}]
+Set-Location .\Project
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={生成系统公钥与主密钥}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 setup -OutDir .\tests\artifacts
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={为属性集合 \{A,B\} 生成私钥}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 keygen -Pub .\tests\artifacts\public.json -Msk .\tests\artifacts\master.json -OutDir .\tests\artifacts -Attrs "A,B"
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={加密示例明文}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 encrypt -Pub .\tests\artifacts\public.json -Policy .\examples\policy.json -In .\examples\message.txt -Out .\tests\artifacts\ct.json
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={使用 \{A,B\} 私钥解密}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 decrypt -Pub .\tests\artifacts\public.json -Sk .\tests\artifacts\sk_A_B.json -In .\tests\artifacts\ct.json -Out .\tests\artifacts\out_A_B.txt
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={运行完整烟雾测试}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\smoke.ps1
+\end{lstlisting}
+
+\subsection*{真实 pairing 路线命令}
+
+真实 pairing 路线与默认指数路线位于同一 \verb|Project| 目录，默认调用仓库根目录下的 \path{env/python.exe}。进入目录后可执行以下命令：
+
+\begin{lstlisting}[language=bash,caption={进入 Project 目录}]
+Set-Location .\Project
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={真实 pairing 版生成系统公钥与主密钥}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 setup -Adapter pairing -OutDir .\artifacts_pairing
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={真实 pairing 版为属性集合 \{A,B\} 生成私钥}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 keygen -Adapter pairing -Pub .\artifacts_pairing\public.json -Msk .\artifacts_pairing\master.json -OutDir .\artifacts_pairing -Attrs "A,B"
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={真实 pairing 版加密示例明文}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 encrypt -Adapter pairing -Pub .\artifacts_pairing\public.json -Policy .\examples\policy.json -In .\examples\message.txt -Out .\artifacts_pairing\ct.json
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={真实 pairing 版使用 \{A,B\} 私钥解密}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\lsss-abe.ps1 decrypt -Adapter pairing -Pub .\artifacts_pairing\public.json -Sk .\artifacts_pairing\sk_A_B.json -In .\artifacts_pairing\ct.json -Out .\artifacts_pairing\out_A_B.txt
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={运行真实 pairing 版完整烟雾测试}]
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\smoke_pairing.ps1
+\end{lstlisting}
+
+\section{示例策略 JSON}
+
+示例策略为 $(A\wedge B)\vee C$，在 JSON 中表示如下：
+
+\begin{lstlisting}[caption={示例访问控制树 JSON}]
+{
+  "k": 1,
+  "children": [
+    {
+      "k": 2,
+      "children": [
+        { "attr": "A" },
+        { "attr": "B" }
+      ]
+    },
+    { "attr": "C" }
+  ]
+}
+\end{lstlisting}
+
+该策略的语义是：用户若同时拥有 A 和 B，则满足 AND 分支；用户若拥有 C，则满足 OR 分支；用户若只有 A 或只有 B，则不满足策略。
+
+\section{核心算法伪代码}
+
+\subsection{树到矩阵转换}
+
+\begin{lstlisting}[caption={访问控制树到 LSSS 矩阵的伪代码}]
+BuildLSSS(policy):
+    randomCount = sum(k - 1 for every threshold gate)
+    n = 1 + randomCount
+    assign random-column indices to every gate
+    rootShare = (1, 0, ..., 0)
+    rows = []
+
+    Visit(node, share):
+        if node is leaf:
+            rows.append((node.attr, share))
+            return
+
+        coeff[0] = share
+        coeff[1..k-1] = unit vectors assigned to this gate
+
+        for child index t = 1..d:
+            childShare = sum_j coeff[j] * t^j
+            Visit(child, childShare)
+
+    Visit(policy.root, rootShare)
+    return M, rho
+\end{lstlisting}
+
+\subsection{解密重构}
+
+\begin{lstlisting}[caption={解密阶段线性重构的伪代码}]
+Decrypt(PK, SK, CT):
+    I = rows whose rho(i) is in SK.attrs
+    solve M_I^T * omega = (1, 0, ..., 0)^T
+    if no solution:
+        reject
+
+    A = sum_i omega_i * (C_i * L + D_i * K_{rho(i)})
+    B = C_0 * K - A
+    m = C - B
+    key = SHA256(m)
+    verify HMAC and decrypt AES payload
+\end{lstlisting}
+
+\section{参考文献}
+
+正文中的方括号编号对应以下参考资料：
+
+\begingroup
+\small
+\sloppy
+\begin{enumerate}
+    \item[{[1]}] 武汉大学国家网络安全学院. ``公钥密码学实验三：属性基加密算法实现与测试.'' 课程课件.
+    \item[{[2]}] J. Bethencourt, A. Sahai, and B. Waters, ``Ciphertext-Policy Attribute-Based Encryption,'' in \emph{2007 IEEE Symposium on Security and Privacy (SP '07)}, 2007, pp. 321--334, doi: 10.1109/SP.2007.11.
+    \item[{[3]}] B. Waters, ``Ciphertext-Policy Attribute-Based Encryption: An Expressive, Efficient, and Provably Secure Realization,'' in \emph{Public Key Cryptography -- PKC 2011}, Lecture Notes in Computer Science, vol. 6571, Springer, 2011, pp. 53--70.
+    \item[{[4]}] Z. Liu, Z. Cao, and D. S. Wong, ``Efficient Generation of Linear Secret Sharing Scheme Matrices from Threshold Access Trees,'' \emph{IACR Cryptology ePrint Archive}, Paper 2010/374, 2010.
+    \item[{[5]}] D. Riepel and H. Wee, ``FABEO: Fast Attribute-Based Encryption with Optimal Security,'' in \emph{Proceedings of the 2022 ACM SIGSAC Conference on Computer and Communications Security (CCS '22)}, 2022, pp. 2491--2504, doi: 10.1145/3548606.3560699.
+\end{enumerate}
+\endgroup

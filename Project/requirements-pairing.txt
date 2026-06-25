@@ -1,0 +1,2 @@
+py-ecc==8.0.0
+pycryptodome==3.23.0
